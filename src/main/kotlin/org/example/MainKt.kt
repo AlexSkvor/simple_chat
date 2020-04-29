@@ -1,9 +1,12 @@
 package org.example
 
-import org.example.chat.Message
+import org.example.chat.ChatServer
+import java.time.format.DateTimeFormatter
 
-fun main(args: Array<String>){
+val formatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd:MM:yyyy HH:mm:ss:SSS")
+
+fun main(args: Array<String>) {
+    val server = ChatServer()
     println("Hello world!")
-    val m = Message("Alex", "Letter")
-    println(m.strDate)
+    server.start()
 }
