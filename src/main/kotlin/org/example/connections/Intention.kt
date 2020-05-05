@@ -1,4 +1,4 @@
-package org.example.new_chat
+package org.example.connections
 
 import org.example.formatter
 import java.io.Serializable
@@ -34,6 +34,8 @@ sealed class Intention(
         val chatId: String,
         val user: User
     ) : Intention()
+
+    data class YourId(val userId: String): Intention()
 
     val strDate: String
         get() = formatter.format(time)

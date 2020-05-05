@@ -1,4 +1,4 @@
-package org.example.new_chat
+package org.example.connections
 
 import java.io.Serializable
 

@@ -1,4 +1,4 @@
-package org.example.new_chat
+package org.example.connections
 
 import java.time.LocalDateTime
 
@@ -11,7 +11,7 @@ class ClientThread(
     private val receivedMessages: MutableList<UserAction> = mutableListOf()
 
     @Synchronized
-    fun changeName(newName: String){
+    fun changeName(newName: String) {
         client.user.login = newName
     }
 
@@ -53,10 +53,11 @@ class ClientThread(
     val user: User
         get() = client.user
 
-    private val readerThread = ReaderThread()
+    private lateinit var readerThread : ReaderThread
 
     override fun run() {
         try {
+            readerThread = ReaderThread()
             readerThread.start()
             while (alive) {
                 if (lastPingFromClient.isBefore(LocalDateTime.now().minusMinutes(1))) {
@@ -64,6 +65,7 @@ class ClientThread(
                     break
                 }
                 sendAllIntentions()
+                sleep(100)
             }
         } catch (e: Throwable) {
             alive = false
@@ -91,13 +93,23 @@ class ClientThread(
             try {
                 while (alive) {
                     val action = client.inputStream.readObject()
-                    if (action !is UserAction) break
+                    if (action !is UserAction) continue
                     if (action is UserAction.Ping) lastPingFromClient = LocalDateTime.now()
                     else addMessage(action)
+                    sleep(100)
                 }
             } catch (e: Throwable) {
-                alive = false
+                alive = false//TODO leave all chats user action!
                 e.printStackTrace()
+            } finally {
+                try {
+                    client.inputStream.close()
+                    client.outputStream.close()
+                    client.socket.close()
+                } catch (e: Throwable) {
+                    e.printStackTrace()
+                    println("Could not close resources!")
+                }
             }
         }
     }

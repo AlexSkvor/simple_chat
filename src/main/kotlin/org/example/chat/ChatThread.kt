@@ -1,10 +1,11 @@
 package org.example.chat
 
 import org.example.doNothing
-import org.example.new_chat.ClientThread
-import org.example.new_chat.Intention
-import org.example.new_chat.User
-import org.example.new_chat.UserAction
+import org.example.connections.ClientThread
+import org.example.connections.Intention
+import org.example.connections.User
+import org.example.connections.UserAction
+import org.example.`try`
 import java.util.*
 
 class ChatThread() : Thread() {
@@ -13,7 +14,7 @@ class ChatThread() : Thread() {
         start()
     }
 
-    companion object{
+    companion object {
         private const val PERIOD = 1000L
     }
 
@@ -22,6 +23,7 @@ class ChatThread() : Thread() {
     private val clients: MutableList<ClientThread> = mutableListOf() //TODO move to independent class!
 
     private val otherChats: MutableList<Intention.Chat> = mutableListOf()
+
 
     private var mainChat: Intention.Chat = Intention.Chat("", "Main Chat", mutableListOf())
 
@@ -37,11 +39,13 @@ class ChatThread() : Thread() {
     }
 
     override fun run() {
-        timer.scheduleAtFixedRate(ChatTimerTask(), 0, PERIOD)
+
+        `try` { timer.scheduleAtFixedRate(ChatTimerTask(), 0, PERIOD) }
 
         try {
             while (true) {
                 collectAllMessages()
+                sleep(100)
             }
         } catch (e: Throwable) {
             e.printStackTrace()
@@ -49,12 +53,16 @@ class ChatThread() : Thread() {
     }
 
     private fun collectAllMessages() {
-        val forRemove = mutableListOf<String>()
+        val forRemove = mutableListOf<User>()
         forEachClient { client ->
-            if (!client.alive) forRemove.add(client.user.uuid)
+            if (!client.alive) forRemove.add(client.user)
             else client.getAllReceivedMessages().forEach { workAroundReceived(it, client.user) }
         }
-        forRemove.forEach { removeClient(it) }
+        forRemove.forEach {user->
+            removeClient(user.uuid)
+            leaveMainChat(user)
+            otherChats.forEach { leaveChat(it.chatId, user) }
+        }
     }
 
     private fun workAroundReceived(action: UserAction, fromWho: User) {
@@ -98,6 +106,13 @@ class ChatThread() : Thread() {
             val intention = Intention.UserLeft(chatId, who)
             chat.users.forEach { forClientWithUserId(it.uuid) { client -> client.addTask(intention) } }
         }
+    }
+
+    private fun leaveMainChat(who: User) {
+        mainChat.users.removeIf { it.uuid == who.uuid }
+        forClientWithUserId(who.uuid) { client -> client.addTask(Intention.ChatClosed("")) }
+        val intention = Intention.UserLeft("", who)
+        mainChat.users.forEach { forClientWithUserId(it.uuid) { client -> client.addTask(intention) } }
     }
 
     private fun joinUser(action: UserAction.JoinUser) {

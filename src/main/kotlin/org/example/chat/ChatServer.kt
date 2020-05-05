@@ -1,9 +1,9 @@
 package org.example.chat
 
-import org.example.new_chat.Client
-import org.example.new_chat.ClientThread
-import org.example.new_chat.User
-import org.example.new_chat.UserAction
+import org.example.alsoPrintDebug
+import org.example.connections.Client
+import org.example.connections.ClientThread
+import org.example.connections.User
 import java.io.IOException
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
@@ -22,18 +22,26 @@ class ChatServer {
     fun start() {
         try {
             while (true) {
-                var client: Socket? = null
-                while (client == null) {
-                    client = socketListener.accept()
+                var socket: Socket? = null
+                alsoPrintDebug("started waiting")
+                while (socket == null) {
+                    socket = socketListener.accept()
                 }
-                chatThread.addClient(ClientThread(Client(client)))
+                acceptUser(socket)
+                Thread.sleep(100)
             }
-        } catch (e: SocketException) {
-            System.err.println("SocketException")
-            e.printStackTrace()
-        } catch (e: IOException) {
-            System.err.println("IOException")
+        } catch (e: Throwable) {
             e.printStackTrace()
         }
+    }
+
+    private fun acceptUser(socket: Socket){
+        val user = User(uuid = UUID.randomUUID().toString())
+        val output = ObjectOutputStream(socket.getOutputStream())
+        output.flush()
+        val input = ObjectInputStream(socket.getInputStream())
+        val c = Client(socket, user, input, output)
+        c.prepare()
+        chatThread.addClient(ClientThread(c))
     }
 }

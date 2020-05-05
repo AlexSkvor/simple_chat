@@ -1,7 +1,6 @@
-package org.example.new_chat
+package org.example.connections
 
 import org.example.formatter
-import org.example.new_chat.User
 import java.io.Serializable
 import java.time.LocalDateTime
 import java.util.*
