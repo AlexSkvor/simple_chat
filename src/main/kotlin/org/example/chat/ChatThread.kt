@@ -1,14 +1,13 @@
 package org.example.chat
 
 import org.example.doNothing
-import org.example.connections.ClientThread
 import org.example.connections.Intention
 import org.example.connections.User
 import org.example.connections.UserAction
 import org.example.`try`
 import java.util.*
 
-class ChatThread() : Thread() {
+class ChatThread : Thread(), ClientsManager by SynchronizedClientManager() {
 
     init {
         start()
@@ -20,23 +19,9 @@ class ChatThread() : Thread() {
 
     private val timer = Timer()
 
-    private val clients: MutableList<ClientThread> = mutableListOf() //TODO move to independent class!
-
     private val otherChats: MutableList<Intention.Chat> = mutableListOf()
 
-
     private var mainChat: Intention.Chat = Intention.Chat("", "Main Chat", mutableListOf())
-
-    @Synchronized
-    fun addClient(clientThread: ClientThread) {
-        clients.add(clientThread)
-    }
-
-    @Synchronized
-    fun removeClient(userId: String) {
-        val i = clients.indexOfFirst { it.user.uuid == userId }
-        clients.removeAt(i)
-    }
 
     override fun run() {
 
@@ -58,7 +43,7 @@ class ChatThread() : Thread() {
             if (!client.alive) forRemove.add(client.user)
             else client.getAllReceivedMessages().forEach { workAroundReceived(it, client.user) }
         }
-        forRemove.forEach {user->
+        forRemove.forEach { user ->
             removeClient(user.uuid)
             leaveMainChat(user)
             otherChats.forEach { leaveChat(it.chatId, user) }
@@ -145,7 +130,6 @@ class ChatThread() : Thread() {
     }
 
     private fun workAroundMessage(message: UserAction.Message, fromWho: User) {
-
         val intention = Intention.Message(
             chatId = message.chatId,
             user = fromWho,
@@ -160,31 +144,9 @@ class ChatThread() : Thread() {
         forClientWithUserId(it.uuid) { client -> client.addTask(message) }
     }
 
-    @Synchronized
-    private fun forClientWithUserId(userId: String, block: (ClientThread) -> Unit) {
-        clients.firstOrNull { it.user.uuid == userId }?.let { block(it) }
-    }
-
-    private fun forEachClient(block: (ClientThread) -> Unit) {
-        var i = 0
-        while (true) {
-            val client = getNextClient(i) ?: break
-            block(client)
-            i++
-        }
-    }
-
-    @Synchronized
-    fun getNextClient(index: Int): ClientThread? {
-        require(index >= 0)
-        return if (index in clients.indices) clients[index]
-        else null
-    }
-
     private inner class ChatTimerTask : TimerTask() {
         override fun run() {
             forEachClient { it.addTask(Intention.Ping) }
         }
     }
-
 }

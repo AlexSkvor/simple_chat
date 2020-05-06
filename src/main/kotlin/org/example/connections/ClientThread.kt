@@ -1,5 +1,6 @@
 package org.example.connections
 
+import org.example.doNothing
 import java.time.LocalDateTime
 
 class ClientThread(
@@ -53,33 +54,15 @@ class ClientThread(
     val user: User
         get() = client.user
 
-    private lateinit var readerThread : ReaderThread
+    private lateinit var readerThread: ReaderThread
 
     override fun run() {
-        try {
-            readerThread = ReaderThread()
-            readerThread.start()
-            while (alive) {
-                if (lastPingFromClient.isBefore(LocalDateTime.now().minusMinutes(1))) {
-                    alive = false
-                    break
-                }
-                sendAllIntentions()
-                sleep(100)
-            }
-        } catch (e: Throwable) {
-            alive = false
-            e.printStackTrace()
-            System.err.println("$user left with error!")
-        } finally {
-            try {
-                client.inputStream.close()
-                client.outputStream.close()
-                client.socket.close()
-            } catch (e: Throwable) {
-                e.printStackTrace()
-                println("Could not close resources!")
-            }
+        readerThread = ReaderThread()
+        readerThread.start()
+        listen {
+            if (lastPingFromClient.isBefore(LocalDateTime.now().minusMinutes(1)))
+                alive = false
+            else sendAllIntentions()
         }
     }
 
@@ -90,27 +73,38 @@ class ClientThread(
 
     private inner class ReaderThread : Thread() {
         override fun run() {
-            try {
-                while (alive) {
-                    val action = client.inputStream.readObject()
-                    if (action !is UserAction) continue
-                    if (action is UserAction.Ping) lastPingFromClient = LocalDateTime.now()
-                    else addMessage(action)
-                    sleep(100)
-                }
-            } catch (e: Throwable) {
-                alive = false//TODO leave all chats user action!
-                e.printStackTrace()
-            } finally {
-                try {
-                    client.inputStream.close()
-                    client.outputStream.close()
-                    client.socket.close()
-                } catch (e: Throwable) {
-                    e.printStackTrace()
-                    println("Could not close resources!")
+            listen {
+                when (val action = client.inputStream.readObject()) {
+                    !is UserAction -> doNothing()
+                    is UserAction.Ping -> lastPingFromClient = LocalDateTime.now()
+                    else -> addMessage(action)
                 }
             }
+        }
+    }
+
+    private fun listen(block: () -> Unit) {
+        try {
+            while (alive) {
+                block.invoke()
+                sleep(100)
+            }
+        } catch (e: Throwable) {
+            alive = false
+            e.printStackTrace()
+        } finally {
+            closeResources()
+        }
+    }
+
+    private fun closeResources() {
+        try {
+            client.outputStream.close()
+            client.inputStream.close()
+            client.socket.close()
+        } catch (e: Throwable) {
+            e.printStackTrace()
+            println("Could not close resources!")
         }
     }
 }
